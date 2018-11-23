@@ -25,15 +25,17 @@ typedef struct ByteArray{
     //char ** values;
 };
 
-void showArray(unsigned char values[4][4]){
+void showArray(unsigned char values[4][4], char str[]){
     int i,j = 0;
+    printf(str);
+    printf(":\n");
     for(i = 0; i < 4; i++){
         for(j = 0; j < 4; j++){
             printf("%hhx\t", values[i][j]);
         }
         printf("\n");
     }
-    printf("\n");
+    printf("===========================\n");
 }
 
 void showSBox(unsigned char values[16][16]){
@@ -113,12 +115,6 @@ void subBytes(struct ByteArray * state, unsigned char sBox[16][16]){
         for (j = 0; j < 4 ; j++){
             col = (int) state->values[i][j] & 0x0f;
             row = (int) (state->values[i][j] & 0xf0)>>4;
-            /*
-            printf("%#04x\t", state->values[i][j]);
-            printf("%#04x\t", col);
-            printf("%#04x\t", row);
-            printf("%#04x\t", sBox[col][row]);
-            */
             state->values[i][j] = sBox[row][col];
             //printf("\n");
         }
@@ -127,7 +123,7 @@ void subBytes(struct ByteArray * state, unsigned char sBox[16][16]){
 
 unsigned char GMul(unsigned char a, unsigned char b)
 { // Galois Field (256) Multiplication of two Bytes
-    unsigned char p = 0;
+    /*unsigned char p = 0;
     int counter;
     for (counter = 0; counter < 8; counter++)
     {
@@ -139,32 +135,47 @@ unsigned char GMul(unsigned char a, unsigned char b)
         a <<= 1;
         if (hi_bit_set) // == vrai
         {
-            a ^= 0x1B; /* x^8 + x^4 + x^3 + x + 1 */
+            a ^= 0x1B; // x^8 + x^4 + x^3 + x + 1 
         }
         b >>= 1;
     }
-    return p;
+    return p;*/
+    int i;
+    int retval= 0;
+     
+    /* GF multiplication with insane bit shifting */
+    for(i = 0; i < 8; i++) {
+        if((b & 1) == 1) 
+            retval ^= a;
+         
+        if((a & 0x80) == 0x80) {
+            a <<= 1;
+            a  ^= 0x1b;
+        } else {
+            a <<= 1;
+        }
+         
+        b >>= 1;
+    }
+     
+    return (unsigned char)retval;
 }
 
 void mixColumns(struct ByteArray * state){
-    unsigned char matrix[4][4] = {
-        {02, 03, 01, 01},
-        {01, 02, 03, 01},
-        {01, 01, 02, 03},
-        {03, 01, 01, 02}};
     unsigned char prevState[4][4];
     int i = 0;
     int j = 0;
-    unsigned char res = 0;
     for (i=0; i<4; i++){
         for (j=0; j<4; j++){
-            prevState[i][j] = state[i][j];
-            //state[i][j] = 0;
+            prevState[i][j] = state->values[i][j];
         }
     }
-    
+    //showArray(prevState,"prevState");
     for (i=0; i<4; i++){
-        state[0][i] = GMul(prevState[i][0], matrix[0][i]) ^ GMul(prevState[i][1], matrix[1][i]) ^GMul(prevState[i][2], matrix[2][i]) ^GMul(prevState[i][3], matrix[3][i]);
+        state->values[0][i] = GMul(2, prevState[0][i]) ^ GMul(3, prevState[1][i]) ^ prevState[2][i] ^ prevState[3][i];
+        state->values[1][i] = prevState[0][i] ^ GMul(2, prevState[1][i]) ^ GMul(3, prevState[2][i]) ^ prevState[3][i];
+        state->values[2][i] = prevState[0][i] ^ prevState[1][i] ^ GMul(2, prevState[2][i]) ^ GMul(3, prevState[3][i]);
+        state->values[3][i] = GMul(3, prevState[0][i]) ^ prevState[1][i] ^ prevState[2][i] ^ GMul(2, prevState[3][i]);
     }
     
     
@@ -204,24 +215,27 @@ int main(int argc, char** argv) {
     struct ByteArray * key = (struct ByteArray*)malloc(sizeof(struct ByteArray));
     int i, j = 0;
     unsigned char sBox[16][16];
-    
     readFromFile(input, "input.bin");
     readFromFile(key, "key.bin");
     getSBox(sBox);
     //showSBox(sBox);
+    showArray(input->values, "input");
+    showArray(key, "key");
+    
+    addRoudKey(input, key);
+    showArray(input->values, "after addRoundKey");
+    subBytes(input, sBox);
+    showArray(input->values, "after subBytes");
+    shiftRows(input);
+    showArray(input->values, "after shiftRows");
+    mixColumns(input);
+    showArray(input->values, "after mixColumns");
     //showArray(input->values);
     /*
-    addRoudKey(input, key);
-    subBytes(input, sBox);
-    shiftRows(input);
-    showArray(input->values);
-    //showArray(input->values);
+    unsigned char a = 127;
+    unsigned char b = 98;
+    printf("%hhx\t", GMul(a,b));
      */
-    mixColumns(input);
-    
-    
-    
-    
 
     return (EXIT_SUCCESS);
 }
